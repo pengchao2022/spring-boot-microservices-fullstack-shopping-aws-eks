@@ -1,0 +1,185 @@
+.order-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.order-info {
+  flex: 1;
+}
+
+.order-id {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.order-date {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.order-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.order-items {
+  margin-bottom: 1rem;
+}
+
+.order-item-preview {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0;
+  gap: 1rem;
+}
+
+.order-item-preview:not(:last-child) {
+  border-bottom: 1px solid #f8f9fa;
+}
+
+.item-image {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.item-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.item-quantity {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.more-items {
+  text-align: center;
+  padding: 0.5rem;
+  color: #666;
+  font-size: 0.9rem;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.order-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #f0f0f0;
+}
+
+.order-total {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.total-amount {
+  color: #e74c3c;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.order-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.order-actions button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-pay {
+  background: #28a745;
+  color: white;
+}
+
+.btn-pay:hover {
+  background: #218838;
+}
+
+.btn-review {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-review:hover {
+  background: #e0a800;
+}
+
+.btn-detail {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-detail:hover {
+  background: #545b62;
+}
+
+@media (max-width: 768px) {
+  .order-card {
+    padding: 1rem;
+  }
+  
+  .order-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .order-footer {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .order-actions {
+    justify-content: center;
+  }
+}

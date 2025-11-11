@@ -1,0 +1,276 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: ecommerce
+  labels:
+    app: product-service
+    app.kubernetes.io/name: product-service
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: product-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: product-service
+        app.kubernetes.io/name: product-service
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)  # 动态版本标签
+        version: $(APP_VERSION)                    # 动态版本标签
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - product-service
+              topologyKey: kubernetes.io/hostname
+      
+      # ========== 添加初始化容器等待数据库就绪 ==========
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15
+        command:
+        - /bin/sh
+        - -c
+        - |
+          until pg_isready -h postgresql-service -p 5432 -U admin; do
+            echo "等待 PostgreSQL 数据库就绪..."
+            sleep 5
+          done
+          echo "PostgreSQL 已就绪，检查 ecommerce_products 数据库..."
+          until psql -h postgresql-service -p 5432 -U admin -d ecommerce_products -c "SELECT 1;" >/dev/null 2>&1; do
+            echo "等待 ecommerce_products 数据库创建..."
+            sleep 5
+          done
+          echo "ecommerce_products 数据库已就绪"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      
+      containers:
+      - name: product-service
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-product-service:$(APP_VERSION)  # 动态镜像版本
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        env:
+        # 版本信息 - 从 ConfigMap 动态获取
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.product-service.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.product-service.description
+        
+        # ========== 关键修复：修正数据库配置 ==========
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgresql-service:5432/ecommerce_products"  # 改为 ecommerce_products
+        - name: DB_USERNAME
+          value: "admin"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: SPRING_REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: SPRING_REDIS_PORT
+          value: "6379"
+        
+        # 禁用 Eureka 服务发现
+        - name: EUREKA_CLIENT_ENABLED
+          value: "false"
+        - name: EUREKA_CLIENT_REGISTER-WITH-EUREKA
+          value: "false"
+        - name: EUREKA_CLIENT_FETCH-REGISTRY
+          value: "false"
+        
+        # 应用配置
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: SPRING_APPLICATION_NAME
+          value: "product-service"
+        
+        # PostgreSQL 配置（冗余配置，确保覆盖所有可能的环境变量）
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: SPRING_DATASOURCE_USERNAME
+          value: "admin"
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: SPRING_DATASOURCE_DRIVER-CLASS-NAME
+          value: "org.postgresql.Driver"
+        
+        # MongoDB 配置
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: password
+        - name: MONGO_HOST
+          value: "mongodb-service"
+        - name: MONGO_PORT
+          value: "27017"
+        - name: MONGO_DATABASE
+          value: "product_db"
+        - name: MONGO_USERNAME
+          value: "admin"
+        
+        # Redis 缓存配置
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_CACHE_TTL
+          value: "3600"
+        
+        # Elasticsearch 搜索配置
+        - name: ELASTICSEARCH_HOST
+          value: "elasticsearch"
+        - name: ELASTICSEARCH_PORT
+          value: "9200"
+        - name: ELASTICSEARCH_PROTOCOL
+          value: "http"
+        - name: ELASTICSEARCH_INDEX_PREFIX
+          value: "ecommerce"
+        
+        # 产品业务配置
+        - name: PRODUCT_CACHE_ENABLED
+          value: "true"
+        - name: PRODUCT_SEARCH_ENABLED
+          value: "true"
+        - name: MAX_PRODUCT_IMAGES
+          value: "10"
+        - name: PRODUCT_REINDEX_BATCH_SIZE
+          value: "100"
+        - name: DEFAULT_PAGE_SIZE
+          value: "20"
+        - name: MAX_PAGE_SIZE
+          value: "100"
+        
+        # 分类和标签配置
+        - name: MAX_CATEGORY_DEPTH
+          value: "3"
+        - name: MAX_TAGS_PER_PRODUCT
+          value: "10"
+        
+        # 库存配置
+        - name: LOW_STOCK_THRESHOLD
+          value: "10"
+        - name: OUT_OF_STOCK_BEHAVIOR
+          value: "HIDE"
+        
+        # 价格配置
+        - name: DEFAULT_CURRENCY
+          value: "USD"
+        - name: PRICE_ROUNDING_SCALE
+          value: "2"
+        
+        # 可选：构建信息
+        - name: BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "800m"
+        
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          failureThreshold: 30
+          timeoutSeconds: 5
+        
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      imagePullSecrets:
+      - name: regcred

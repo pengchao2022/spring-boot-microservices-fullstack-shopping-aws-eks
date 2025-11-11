@@ -1,0 +1,195 @@
+.fruit-card {
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+}
+
+.fruit-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.15);
+}
+
+.fruit-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  flex: 1;
+  min-height: 0;
+}
+
+.fruit-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: white;
+  display: block;
+}
+
+.fruit-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.fruit-card:hover .fruit-img {
+  transform: scale(1.05);
+}
+
+.featured-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #4caf50;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+.fruit-info {
+  padding: 20px;
+  flex-shrink: 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+.fruit-name {
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin: 0 0 10px 0;
+  color: #333;
+  line-height: 1.3;
+}
+
+.fruit-description {
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0 0 12px 0;
+  min-height: 40px;
+}
+
+.fruit-attributes {
+  display: flex;
+  gap: 15px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+
+.attribute {
+  font-size: 0.8rem;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fruit-variety,
+.fruit-origin,
+.fruit-season,
+.fruit-vitamin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 0.85rem;
+  color: #666;
+  line-height: 1.2;
+}
+
+.variety-label,
+.origin-label,
+.season-label,
+.vitamin-label {
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.variety-value,
+.origin-value,
+.season-value,
+.vitamin-value {
+  color: #333;
+}
+
+.fruit-price-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.fruit-price {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.current-price {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #4caf50;
+}
+
+.weight {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.view-details-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.view-details-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: block;
+  text-decoration: none;
+  outline: none;
+}
+
+.view-details-btn:hover {
+  background: linear-gradient(135deg, #45a049, #3d8b40);
+  transform: translateY(-2px);
+  color: white;
+  text-decoration: none;
+}
+
+.view-details-link:focus,
+.view-details-btn:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .fruit-card {
+    height: 450px;
+  }
+  
+  .fruit-info {
+    padding: 15px;
+  }
+}

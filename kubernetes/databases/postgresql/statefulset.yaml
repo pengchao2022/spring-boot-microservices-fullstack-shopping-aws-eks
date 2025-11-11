@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+  namespace: ecommerce
+spec:
+  serviceName: postgresql-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      initContainers:
+      - name: setup-init-scripts
+        image: busybox
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # 创建初始化脚本
+          cat > /docker-entrypoint-initdb.d/01-create-databases.sql << 'EOF'
+          CREATE DATABASE ecommerce_inventory;
+          CREATE DATABASE ecommerce_orders;
+          CREATE DATABASE ecommerce_payments;
+          CREATE DATABASE ecommerce_users;
+          CREATE DATABASE ecommerce_products;
+          -- 可以在这里添加其他数据库
+          EOF
+          echo "Init scripts created successfully"
+          echo "Databases to be created: ecommerce_inventory, ecommerce_orders, ecommerce_payments, ecommerce_users, ecommerce_products"
+        volumeMounts:
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+      containers:
+        - name: postgresql
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "ecommerce"
+            - name: POSTGRES_USER
+              value: "admin"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - admin
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - admin
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: postgresql-data
+          persistentVolumeClaim:
+            claimName: postgresql-pvc
+        - name: init-scripts
+          emptyDir: {}

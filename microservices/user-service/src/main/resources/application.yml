@@ -1,0 +1,179 @@
+spring:
+  application:
+    name: user-service
+  profiles:
+    active: production
+  datasource:
+    url: jdbc:postgresql://postgresql-service:5432/ecommerce_users
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+          order_inserts: true
+          order_updates: true
+  redis:
+    host: redis-service
+    port: 6379
+    password: ${SPRING_REDIS_PASSWORD}
+    timeout: 2000
+    lettuce:
+      pool:
+        max-active: 10
+        max-idle: 5
+        min-idle: 2
+        max-wait: 1000
+  # ==================== Flyway 数据库迁移配置 ====================
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+    schemas: public
+    table: flyway_schema_history
+    clean-disabled: true
+    out-of-order: false
+    ignore-missing-migrations: false
+    ignore-future-migrations: true
+    # 如果数据库不存在时自动创建（可选）
+    # create-schemas: true
+    # 初始化SQL（可选）
+    # init-sqls: CREATE SCHEMA IF NOT EXISTS public;
+  # ==================== Security 安全配置 ====================
+  security:
+    # 允许对 Actuator 端点的公共访问
+    ignored: /actuator/**
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      # 允许跨域访问，便于 Kubernetes 探针访问
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET,OPTIONS
+    enabled-by-default: false
+  endpoint:
+    health:
+      enabled: true
+      show-details: always
+      probes:
+        enabled: true
+      # 允许所有用户访问健康端点
+      access: permit-all
+    info:
+      enabled: true
+      access: permit-all
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+      access: permit-all
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    # Flyway 健康检查
+    flyway:
+      enabled: true
+  # 禁用 Actuator 端点的安全保护
+  security:
+    enabled: false
+
+logging:
+  level:
+    com.ecommerce.user: DEBUG
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.springframework.security: WARN
+    # Flyway 日志配置
+    org.flywaydb: INFO
+    # 支付宝SDK日志配置
+    com.alipay: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: 2592000000
+
+app:
+  security:
+    password:
+      min-length: ${PASSWORD_MIN_LENGTH:8}
+      max-length: ${PASSWORD_MAX_LENGTH:128}
+    login:
+      max-attempts: ${MAX_LOGIN_ATTEMPTS:5}
+      lockout-duration: ${ACCOUNT_LOCKOUT_DURATION:900000}
+    verification:
+      email: ${REQUIRE_EMAIL_VERIFICATION:true}
+      phone: ${REQUIRE_PHONE_VERIFICATION:false}
+    bcrypt-strength: ${BCRYPT_STRENGTH:12}
+    session-timeout: ${SESSION_TIMEOUT:1800}
+    csrf-protection: ${ENABLE_CSRF_PROTECTION:true}
+
+notification:
+  service-url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8080}
+  send-welcome-email: ${SEND_WELCOME_EMAIL:true}
+
+# ==================== 支付宝配置 ====================
+alipay:
+  # 应用ID (从支付宝开放平台获取)
+  app-id: ${ALIPAY_APP_ID:2021006103655907}
+  # 应用私钥 (从支付宝开放平台获取，建议使用环境变量)
+  private-key: ${ALIPAY_PRIVATE_KEY:MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDIj6uW9cZSMOb3uhxYTf0pf/J0IfFSUW6a2y+nQL8ZmuFHRIHJasVVH+/27ulzYlxlMp5+9SfmAWeeDkSb1ctgoslFJI32sKKs5Qw7uH6LMhoJHR6shIk40FKBLn1VvgeFggo+p6ODN1vm82JMNZYYUXTuHplPzRiCAPmYgJWoIWyDDPtC55rCo3PSUVtNHkjR9kzG+pODixlAdQ3pnfAaUVbs6zNgLotKDHDm0m6TjnWvvToxtA08r1YOtq6WAsXEr+bBQMFvhqMsDLEvF9g0iQwk3IQmma52DiJIqLQo9n7JZQeq1HYJqo8MG6D5GEeUSOVDWcINzoDylew8rDIrAgMBAAECggEAZpFzA2T145q2xAId9NsNmWehqtqg+6RBmFh36mUmVgXrJ/NVHJjKClqm8fYE1cl7zxUwEWV23h3hy+coFzojJGyb2gxzvbFfwGPy+afEr5MT1Y1a3od5VeDUENShrHPejNyQOLKq4LQy/82Ae9D7zbv6vLxRU4pj+jhdbSx1XOGydhZZikxWYxZAOQT+c4qyoy8l5TUw6CDZZ4a6K0Q58a30PXBhzDUHwVRRQ4K9oBPVU1CNZSdATlx/xGxaPbTNay3dJDyfCUcJWpsJ3zuyQ1VLEtAqjsXTDTcE8mGFhxR7Yy7jnHBltvlWlprCOiHvhZX+J2h1XKsWCDNiF+JPAQKBgQD2Vr6yyIedQt/B8ZeQRBUfpcoOL0Z+etLT9abQmMfsfY3bczZbUSGJrOSwPDcN9Swix/onJcPFRpAA9JV392TVmTvCB1QKMnaCG1GxIq/yCQeq/h4r/yiVH/0YT4pH0zCNdggapBKxjtTOqLZZPlikm8DhyWw7+RJklfqDoXjXIQKBgQDQbVDCvpWio99pSl4EaK/mbm1/He2JEAn8sklDA4zcrH+7jH3TGtKPPNKNXrbdtb7jLlrLBW0L8aAA7DVTwEM7+Ics3iWEwE0PusCmFZcXZcXEsNjSrZCN3vzEHobiFH9gwOBnHp5PYGoKsUtdgbSn1RQpA8LV/3d/6FArsKU7ywKBgApRXdFtNsjueSLNdLS1NVFLB2iKsGAx0szP+Dm6fH06UQvFCpzOjCIRHM8I5qFuCHg4ehDTsxx7NSLlG7GXqiCMN4WL+wgmTvJqJITP2CDCIhEWbbsYB+IfIeG3yynw/ZKfQ/2hq6rGOcGiLWkVhG74mx6Z6i+k4hFWetSymbYhAoGBAI1rDpgEXl0rGWREfEQ7j9Ym6Q6ODOSpyEz33zOkDgiQ1l43tgvtsB5WI3qeYC9QqMNWaW5FMTcga/MUUh6QXk4rk/RCimxnWiIpEZvfHFRYznZlk8hm0aUhPpoHKHfvdnn8hIYTRVEQVwMIRt2cKyqRLguiLKmsm7ViuDrcsVA/AoGBAOCRccO4LYdKpqOP4DuAMxXjxn9q3hXCSjsWqXyABhLJM63r6x7z8xgzRZ+RvxOShbZIZDwug0g6d3plGGR5uPIk7fTlqXtTyqRlmzmDwGVXvaztU4mszMpRQ8pT0a2Z7VLW+yJLK/36nSJFtLgzZbdmr3xm1JzRoqdKwV21Vwsv}
+  # 支付宝公钥 (从支付宝开放平台获取，建议使用环境变量)
+  alipay-public-key: ${ALIPAY_PUBLIC_KEY:MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjZZrsTprAIrdZySGkFUOoWLvTWutG3PntcvssBZ1u5rm4l16maevIvicDR6u9fPyFDJjrpLVijcw8rZR10ET3xltP4vkz0EMQfM/trLu7wb1/pTI1t8pC6Lf10+JZ9sxx5qGtYk7QX9BGQHf1ACd17OQ+2xKPjqxKQxy6svoT4gyBEAI5Ist0MqgjvQwP/FDkUv9I+5UWBx9a05reMd5Gdul2ToS8fqo/zeoxQJ1p/3pPY4Ve1xsj3Gv2iNLYLNa7QjLhgi0zxjNloWUUqO0Yd9dJzYJeCict+BKHf5HuIdOn90mt6HXbIZYG0ALaAg+kZcDOlLLSQ1RGJ6/kqlaowIDAQAB}
+  # 支付宝网关地址
+  gateway: ${ALIPAY_GATEWAY:https://openapi.alipay.com/gateway.do}
+  # 签名算法类型
+  sign-type: RSA2
+  # 字符编码
+  charset: UTF-8
+  # 数据格式
+  format: json
+  # 回调地址 (支付宝登录成功后回调的地址)
+  callback-url: ${ALIPAY_CALLBACK_URL:http://localhost:8080/api/auth/alipay/callback}
+  # 授权范围
+  scope: auth_user
+  # 是否启用沙箱环境
+  sandbox: ${ALIPAY_SANDBOX:false}
+  # 沙箱环境网关 (如果启用沙箱环境)
+  sandbox-gateway: https://openapi.alipaydev.com/gateway.do
+
+# ==================== 健康检查专用配置 ====================
+# 这些配置确保 Kubernetes 探针可以无认证访问健康端点
+security:
+  basic:
+    enabled: false

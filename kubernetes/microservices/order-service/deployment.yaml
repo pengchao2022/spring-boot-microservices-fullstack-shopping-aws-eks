@@ -1,0 +1,273 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: ecommerce
+  labels:
+    app: order-service
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: order-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: order-service
+        app.kubernetes.io/name: order-service
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)  # 动态版本标签
+        version: $(APP_VERSION)                    # 动态版本标签
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"                 # 修正为实际端口 8082
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # 添加初始化容器确保数据库就绪
+      initContainers:
+      - name: wait-for-database
+        image: postgres:15
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for PostgreSQL service to be ready..."
+          until pg_isready -h postgresql-service -U admin; do
+            echo "PostgreSQL service not ready yet, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL service is ready."
+          
+          echo "Waiting for database ecommerce_orders to be created..."
+          until psql -h postgresql-service -U admin -d ecommerce -c "SELECT 1 FROM pg_database WHERE datname='ecommerce_orders'" | grep -q 1; do
+            echo "Database ecommerce_orders not created yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Waiting for database ecommerce_orders to be ready for connections..."
+          until pg_isready -h postgresql-service -U admin -d ecommerce_orders; do
+            echo "Database ecommerce_orders not ready yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Database ecommerce_orders is ready for connections"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - order-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: order-service
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-order-service:$(APP_VERSION)  # 动态镜像版本
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8082          # 修正为实际端口 8082
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        env:
+        # 版本信息 - 从 ConfigMap 动态获取
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.order-service.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.order-service.description
+        
+        # ========== 数据库连接配置 ==========
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgresql-service:5432/ecommerce_orders"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        # ============================================
+        
+        # 应用配置
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: SPRING_APPLICATION_NAME
+          value: "order-service"
+        
+        # 缓存配置 - 修正 Redis 主机名
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: REDIS_HOST
+          value: "redis-service"  # 修正为实际的服务名称
+        - name: REDIS_PORT
+          value: "6379"
+        
+        # 消息队列配置 - 修正 RabbitMQ 主机名
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        - name: RABBITMQ_HOST
+          value: "rabbitmq-service"  # 修正为实际的服务名称
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        
+        # Spring RabbitMQ 配置（确保应用使用正确的配置）
+        - name: SPRING_RABBITMQ_HOST
+          value: "rabbitmq-service"  # 修正为实际的服务名称
+        - name: SPRING_RABBITMQ_PORT
+          value: "5672"
+        - name: SPRING_RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        
+        # 微服务通信配置
+        - name: USER_SERVICE_URL
+          value: "http://user-service:8080"
+        - name: PRODUCT_SERVICE_URL
+          value: "http://product-service:8080"
+        - name: PAYMENT_SERVICE_URL
+          value: "http://payment-service:80"     # 修正端口为 80
+        - name: INVENTORY_SERVICE_URL
+          value: "http://inventory-service:8080"   # 修正端口为 8080
+        - name: NOTIFICATION_SERVICE_URL
+          value: "http://notification-service:8085" # 修正端口为 8085
+        
+        # 订单业务配置
+        - name: ORDER_EXPIRY_MINUTES
+          value: "30"
+        - name: MAX_ORDER_ITEMS
+          value: "50"
+        - name: ENABLE_ORDER_VALIDATION
+          value: "true"
+        
+        # ========== 库存检查配置 - 已禁用 ==========
+        - name: INVENTORY_CHECK_ENABLED
+          value: "false"
+        - name: app.inventory.check-enabled
+          value: "false"
+        - name: ENABLE_INVENTORY_VALIDATION
+          value: "false"
+        - name: INVENTORY_VALIDATION_ENABLED
+          value: "false"
+        - name: ORDER_SERVICE_INVENTORY_CHECK
+          value: "false"
+        # ============================================
+        
+        # Saga 模式配置
+        - name: SAGA_TIMEOUT_SECONDS
+          value: "300"
+        - name: MAX_SAGA_RETRIES
+          value: "3"
+        
+        # Flyway 配置（如果需要数据库迁移）
+        - name: SPRING_FLYWAY_ENABLED
+          value: "true"
+        - name: SPRING_FLYWAY_VALIDATE_ON_MIGRATE
+          value: "true"
+        - name: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+          value: "true"
+        
+        # 可选：构建信息
+        - name: BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        
+        # 健康检查配置 - 临时禁用 RabbitMQ 健康检查（可选）
+        - name: MANAGEMENT_HEALTH_RABBIT_ENABLED
+          value: "false"
+        
+        resources:
+          requests:
+            memory: "384Mi"
+            cpu: "300m"
+          limits:
+            memory: "768Mi"
+            cpu: "600m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health                  # 修正健康检查路径
+            port: 8082                              # 修正为实际端口 8082
+            scheme: HTTP
+          initialDelaySeconds: 90  # 延长等待时间，确保数据库迁移完成
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health                  # 修正健康检查路径
+            port: 8082                              # 修正为实际端口 8082
+            scheme: HTTP
+          initialDelaySeconds: 60  # 延长等待时间，确保应用完全启动
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /actuator/health                  # 修正健康检查路径
+            port: 8082                              # 修正为实际端口 8082
+            scheme: HTTP
+          initialDelaySeconds: 40
+          periodSeconds: 15
+          failureThreshold: 30
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: regcred

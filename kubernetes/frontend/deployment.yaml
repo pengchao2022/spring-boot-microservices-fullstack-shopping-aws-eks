@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: ecommerce
+  labels:
+    app: frontend
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: frontend
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)
+        version: $(APP_VERSION)
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: frontend
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-frontend:$(APP_VERSION)
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.frontend.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.frontend.description
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "80"
+        - name: API_BASE_URL
+          value: "https://awsmpc.asia/api"  # ✅ 改为正确的ALB地址
+        - name: API_GATEWAY_URL
+          value: "https://awsmpc.asia/api"  # ✅ 改为正确的ALB地址
+        - name: REACT_APP_API_URL
+          value: "https://awsmpc.asia/api"  # ✅ 改为正确的ALB地址
+        - name: REACT_APP_APP_NAME
+          value: "Ecommerce Platform"
+        - name: REACT_APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.frontend.version
+        - name: REACT_APP_BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: REACT_APP_GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        - name: REACT_APP_ENABLE_ANALYTICS
+          value: "true"
+        - name: REACT_APP_ENABLE_DEBUG
+          value: "false"
+        - name: REACT_APP_ENABLE_PWA
+          value: "true"
+        - name: NGINX_WORKER_PROCESSES
+          value: "auto"
+        - name: NGINX_WORKER_CONNECTIONS
+          value: "1024"
+        - name: NGINX_KEEPALIVE_TIMEOUT
+          value: "65"
+        - name: CACHE_CONTROL_MAX_AGE
+          value: "31536000"
+        - name: BROWSER_CACHE_ENABLED
+          value: "true"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        # 🟢 关键修改：使用 nginx 用户，没有复杂的挂载
+        securityContext:
+          runAsUser: 101
+          runAsGroup: 101
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
+          successThreshold: 1
+      imagePullSecrets:
+      - name: regcred

@@ -1,0 +1,245 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: ecommerce
+  labels:
+    app: notification-service
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: notification-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        app.kubernetes.io/name: notification-service
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)  # 动态版本标签
+        version: $(APP_VERSION)                    # 动态版本标签
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # 添加初始化容器确保数据库就绪
+      initContainers:
+      - name: wait-for-database
+        image: postgres:15
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for PostgreSQL service to be ready..."
+          until pg_isready -h postgresql-service -U admin; do
+            echo "PostgreSQL service not ready yet, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL service is ready."
+          
+          echo "Waiting for database ecommerce_notifications to be ready..."
+          until pg_isready -h postgresql-service -U admin -d ecommerce_notifications; do
+            echo "Database ecommerce_notifications not ready yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Database ecommerce_notifications is ready for connections"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - notification-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: notification-service
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-notification-service:$(APP_VERSION)  # 动态镜像版本
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        env:
+        # 版本信息 - 从 ConfigMap 动态获取
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.notification-service.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.notification-service.description
+        
+        # ========== 数据库连接配置 ==========
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgresql-service:5432/ecommerce_notifications"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        # ============================================
+        
+        # 应用配置
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: SPRING_APPLICATION_NAME
+          value: "notification-service"
+        
+        # 消息队列配置
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        
+        # 邮件服务配置 (SendGrid) - 注释掉缺失的 secret 引用
+        # - name: SENDGRID_API_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: sendgrid-secret
+        #       key: api-key
+        - name: SENDGRID_FROM_EMAIL
+          value: "noreply@awsmpc.asia"
+        - name: SENDGRID_FROM_NAME
+          value: "Ecommerce Platform"
+        
+        # SMS 服务配置 (Twilio) - 注释掉缺失的 secret 引用
+        # - name: TWILIO_ACCOUNT_SID
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: twilio-secret
+        #       key: account-sid
+        # - name: TWILIO_AUTH_TOKEN
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: twilio-secret
+        #       key: auth-token
+        # - name: TWILIO_PHONE_NUMBER
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: twilio-secret
+        #       key: phone-number
+        
+        # 推送通知配置 (Firebase) - 注释掉缺失的 secret 引用
+        # - name: FIREBASE_SERVICE_ACCOUNT
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: firebase-secret
+        #       key: service-account
+        # - name: FIREBASE_PROJECT_ID
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: firebase-secret
+        #       key: project-id
+        
+        # 通知模板配置 - 禁用所有通知功能
+        - name: NOTIFICATION_EMAIL_ENABLED
+          value: "false"
+        - name: NOTIFICATION_SMS_ENABLED
+          value: "false"
+        - name: NOTIFICATION_PUSH_ENABLED
+          value: "false"
+
+        # Flyway 配置
+        - name: SPRING_FLYWAY_ENABLED
+          value: "true"
+        - name: SPRING_FLYWAY_VALIDATE_ON_MIGRATE
+          value: "true"
+        - name: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+          value: "true"
+        
+        # 可选：构建信息
+        - name: BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "400m"
+        livenessProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 90  # 延长等待时间，确保 Flyway 迁移完成
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60  # 延长等待时间，确保应用完全启动
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 30
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: regcred

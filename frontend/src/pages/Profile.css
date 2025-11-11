@@ -1,0 +1,369 @@
+.profile-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  min-height: calc(100vh - 200px);
+}
+
+.profile-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.profile-header h1 {
+  font-size: 2.5rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.user-welcome {
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.profile-content {
+  display: flex;
+  gap: 2rem;
+}
+
+/* 侧边栏样式 */
+.profile-sidebar {
+  width: 250px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+}
+
+.sidebar-item {
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.sidebar-item:hover {
+  background: #f5f5f5;
+}
+
+.sidebar-item.active {
+  background: #ff5722;
+  color: white;
+}
+
+.sidebar-item.logout {
+  color: #ff4444;
+  margin-top: 2rem;
+}
+
+.sidebar-item.logout:hover {
+  background: #ffeaea;
+}
+
+/* 主内容区域 */
+.profile-main {
+  flex: 1;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.tab-content h2 {
+  color: #333;
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+}
+
+/* 个人信息卡片 */
+.profile-card {
+  display: flex;
+  gap: 3rem;
+  align-items: flex-start;
+}
+
+.avatar-section {
+  text-align: center;
+}
+
+.avatar-upload {
+  position: relative;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #ff5722;
+}
+
+.avatar-actions {
+  margin-top: 1rem;
+}
+
+.upload-btn {
+  background: #ff5722;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.3s ease;
+}
+
+.upload-btn:hover {
+  background: #e64a19;
+}
+
+/* 表单样式 */
+.profile-form {
+  flex: 1;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #ff5722;
+}
+
+.field-value {
+  padding: 0.75rem;
+  background: #f9f9f9;
+  border-radius: 6px;
+  color: #666;
+}
+
+/* 地址管理 */
+.address-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.address-form-card {
+  background: #f9f9f9;
+  padding: 2rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-checkbox {
+  margin: 1rem 0;
+}
+
+.form-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+/* 地址列表 */
+.address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.address-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  transition: border-color 0.3s ease;
+}
+
+.address-card:hover {
+  border-color: #ff5722;
+}
+
+.address-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.recipient {
+  font-weight: 600;
+  color: #333;
+}
+
+.phone {
+  color: #666;
+}
+
+.default-badge {
+  background: #ff5722;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+}
+
+.address-detail {
+  color: #666;
+  line-height: 1.5;
+}
+
+.address-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+/* 安全设置 */
+.security-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.security-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.security-info h3 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+}
+
+.security-info p {
+  margin: 0;
+  color: #666;
+}
+
+/* 按钮样式 */
+.btn-primary {
+  background: #ff5722;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: #e64a19;
+}
+
+.btn-secondary {
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #ff5722;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #e64a19;
+}
+
+.text-danger {
+  color: #ff4444;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+/* 登录提示 */
+.login-prompt {
+  text-align: center;
+  padding: 3rem;
+}
+
+.login-prompt h2 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.login-prompt p {
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .profile-content {
+    flex-direction: column;
+  }
+  
+  .profile-sidebar {
+    width: 100%;
+  }
+  
+  .profile-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .address-card {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .security-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}

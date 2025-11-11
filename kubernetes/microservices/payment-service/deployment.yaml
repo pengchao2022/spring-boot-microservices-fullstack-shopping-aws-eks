@@ -1,0 +1,322 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: ecommerce
+  labels:
+    app: payment-service
+    app.kubernetes.io/name: payment-service
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: payment-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        app.kubernetes.io/name: payment-service
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)
+        version: $(APP_VERSION)
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"  # 改为 8084 (management 端口)
+        prometheus.io/path: "/management/prometheus"  # 更新路径
+    spec:
+      # 添加初始化容器确保数据库就绪
+      initContainers:
+      - name: wait-for-database
+        image: postgres:15
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for PostgreSQL service to be ready..."
+          until pg_isready -h postgresql-service -U admin; do
+            echo "PostgreSQL service not ready yet, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL service is ready."
+          
+          echo "Waiting for database ecommerce_payments to be created..."
+          until psql -h postgresql-service -U admin -d ecommerce -c "SELECT 1 FROM pg_database WHERE datname='ecommerce_payments'" | grep -q 1; do
+            echo "Database ecommerce_payments not created yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Waiting for database ecommerce_payments to be ready for connections..."
+          until pg_isready -h postgresql-service -U admin -d ecommerce_payments; do
+            echo "Database ecommerce_payments not ready yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Database ecommerce_payments is ready for connections"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - payment-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: payment-service
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-payment-service:$(APP_VERSION)
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8083  # 改为 8083 (应用端口)
+          name: http
+          protocol: TCP
+        - containerPort: 8084  # 改为 8084 (management 端口)
+          name: metrics
+          protocol: TCP
+        env:
+        # 版本信息 - 从 ConfigMap 动态获取
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.payment-service.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.payment-service.description
+        # 应用配置
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: SPRING_APPLICATION_NAME
+          value: "payment-service"
+        # 数据库配置
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgresql-service:5432/ecommerce_payments"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        # 兼容旧配置（可选）
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: DB_HOST
+          value: "postgresql-service"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "ecommerce_payments" 
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        
+        # ==================== 支付宝配置 ====================
+        # 支付宝基础配置
+        - name: ALIPAY_APP_ID
+          valueFrom:
+            secretKeyRef:
+              name: alipay-secret
+              key: app-id
+        - name: ALIPAY_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: alipay-secret
+              key: private-key
+        - name: ALIPAY_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: alipay-secret
+              key: alipay-public-key
+        - name: ALIPAY_GATEWAY_URL
+          value: "https://openapi.alipay.com/gateway.do"
+        - name: ALIPAY_FORMAT
+          value: "JSON"
+        - name: ALIPAY_CHARSET
+          value: "UTF-8"
+        - name: ALIPAY_SIGN_TYPE
+          value: "RSA2"
+        - name: ALIPAY_VERSION
+          value: "1.0"
+        
+        # 支付宝环境配置
+        - name: ALIPAY_ENVIRONMENT
+          value: "PRODUCTION"
+        - name: ALIPAY_NOTIFY_URL
+          value: "https://awsmpc.asia/api/payments/webhook/alipay"
+        - name: ALIPAY_RETURN_URL
+          value: "https://awsmpc.asia/payment/success"
+        
+        # 支付宝业务配置
+        - name: ALIPAY_TIMEOUT_EXPRESS
+          value: "15m"
+        - name: ALIPAY_PRODUCT_CODE
+          value: "FAST_INSTANT_TRADE_PAY"
+        - name: ALIPAY_ENABLE_ASYNC_PAYMENT
+          value: "true"
+        - name: ALIPAY_ENABLE_LOG
+          value: "true"
+        - name: ALIPAY_LOG_PATH
+          value: "/var/log/alipay"
+        # ==================== 支付宝配置结束 ====================
+        
+        # 支付业务配置
+        - name: PAYMENT_TIMEOUT_MINUTES
+          value: "15"
+        - name: MAX_PAYMENT_AMOUNT
+          value: "10000.00"
+        - name: DEFAULT_CURRENCY
+          value: "CNY"
+        - name: ALLOW_PARTIAL_REFUNDS
+          value: "true"
+        - name: SUPPORTED_CURRENCIES
+          value: "CNY"
+        
+        # 微服务通信配置
+        - name: ORDER_SERVICE_URL
+          value: "http://order-service:8080"
+        - name: NOTIFICATION_SERVICE_URL
+          value: "http://notification-service:8080"
+        
+        # ==================== RABBITMQ 配置 ====================
+        # RabbitMQ 连接配置
+        - name: SPRING_RABBITMQ_HOST
+          value: "rabbitmq-service"
+        - name: SPRING_RABBITMQ_PORT
+          value: "5672"
+        - name: SPRING_RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        - name: SPRING_RABBITMQ_VIRTUAL_HOST
+          value: "/"
+        
+        # RabbitMQ 连接和重试配置
+        - name: SPRING_RABBITMQ_TEMPLATE_RETRY_ENABLED
+          value: "true"
+        - name: SPRING_RABBITMQ_TEMPLATE_RETRY_INITIAL_INTERVAL
+          value: "5000"
+        - name: SPRING_RABBITMQ_TEMPLATE_RETRY_MULTIPLIER
+          value: "2"
+        - name: SPRING_RABBITMQ_TEMPLATE_RETRY_MAX_ATTEMPTS
+          value: "3"
+        - name: SPRING_RABBITMQ_CONNECTION_TIMEOUT
+          value: "10000"
+        
+        # 如果应用启动时 RabbitMQ 不可用，可以添加这些配置
+        - name: SPRING_RABBITMQ_LISTENER_SIMPLE_MISSING_QUEUES_FATAL
+          value: "false"
+        - name: SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP
+          value: "false"
+        # ==================== RABBITMQ 配置结束 ====================
+        
+        # Webhook 配置
+        - name: ALIPAY_WEBHOOK_ENDPOINT
+          value: "/api/payments/webhook/alipay"
+        - name: WEBHOOK_SUCCESS_URL
+          value: "https://awsmpc.asia/payment/success"
+        - name: WEBHOOK_CANCEL_URL
+          value: "https://awsmpc.asia/payment/cancel"
+        
+        # 安全配置
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: payment-secret
+              key: encryption-key
+        
+        # 可选：构建信息
+        - name: BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        
+        # Flyway 配置
+        - name: SPRING_FLYWAY_ENABLED
+          value: "true"
+        - name: SPRING_FLYWAY_VALIDATE_ON_MIGRATE
+          value: "true"
+        - name: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+          value: "true"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8083  # 改为 8083
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8083  # 改为 8083
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8083  # 改为 8083
+            scheme: HTTP
+          initialDelaySeconds: 40
+          periodSeconds: 15
+          failureThreshold: 30
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: regcred

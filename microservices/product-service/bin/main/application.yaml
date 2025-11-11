@@ -1,0 +1,222 @@
+spring:
+  application:
+    name: product-service
+  profiles:
+    active: production
+  
+  # 数据源配置
+  datasource:
+    url: jdbc:postgresql://postgresql-service:5432/ecommerce_products
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  # JPA 配置 - 完全禁用验证
+  jpa:
+    hibernate:
+      ddl-auto: none
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        hbm2ddl:
+          auto: none
+        temp:
+          use_jdbc_metadata_defaults: false
+      # 禁用持久化验证
+      javax:
+        persistence:
+          validation:
+            mode: none
+  
+  # Redis 配置
+  redis:
+    host: redis-service
+    port: 6379
+    password: ${SPRING_REDIS_PASSWORD}
+    timeout: 2000
+    lettuce:
+      pool:
+        max-active: 10
+        max-idle: 5
+        min-idle: 2
+        max-wait: 1000
+  
+  # MongoDB 配置
+  data:
+    mongodb:
+      host: mongodb-service
+      port: 27017
+      database: product_db
+      username: ${MONGO_USERNAME:admin}
+      password: ${MONGO_PASSWORD}
+      authentication-database: admin
+  
+  # ==================== Flyway 数据库迁移配置 ====================
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+    schemas: public
+    table: flyway_schema_history
+    clean-disabled: true
+    out-of-order: false
+    ignore-missing-migrations: false
+    ignore-future-migrations: true
+  
+  # ==================== Elasticsearch 配置 ====================
+  elasticsearch:
+    uris: http://elasticsearch:9200
+    connection-timeout: 10s
+    socket-timeout: 30s
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    # 服务器编码配置 - 合并到同一个 servlet 块中
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  # ==================== Tomcat 配置 - 支持中文参数 ====================
+  tomcat:
+    # 允许在查询参数中使用特殊字符（包括中文）
+    relaxed-query-chars: '|,{,},[,],^,`,<,>, ,",'
+    # 允许在路径中使用特殊字符
+    relaxed-path-chars: '|,{,},[,],^,`,<,>, ,",'
+    # URI 编码
+    uri-encoding: UTF-8
+    # 最大参数数量
+    max-parameter-count: 10000
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+# ==================== 管理端点配置 ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET,OPTIONS
+    enabled-by-default: false
+  endpoint:
+    health:
+      enabled: true
+      show-details: always
+      probes:
+        enabled: true
+      access: permit-all
+    info:
+      enabled: true
+      access: permit-all
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+      access: permit-all
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    mongo:
+      enabled: true
+    elasticsearch:
+      enabled: true
+    flyway:
+      enabled: true
+  security:
+    enabled: false
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    com.ecommerce.product: DEBUG
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.springframework.data.elasticsearch: WARN
+    # Flyway 日志配置
+    org.flywaydb: INFO
+    # MongoDB 日志配置
+    org.springframework.data.mongodb: WARN
+    # Tomcat 相关日志
+    org.apache.coyote: WARN
+    org.apache.tomcat: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# ==================== 产品服务业务配置 ====================
+app:
+  product:
+    # 缓存配置
+    cache:
+      enabled: ${PRODUCT_CACHE_ENABLED:true}
+      ttl: ${REDIS_CACHE_TTL:3600}
+    # 搜索配置
+    search:
+      enabled: ${PRODUCT_SEARCH_ENABLED:true}
+      index-prefix: ${ELASTICSEARCH_INDEX_PREFIX:ecommerce}
+    # 分页配置
+    pagination:
+      default-page-size: ${DEFAULT_PAGE_SIZE:20}
+      max-page-size: ${MAX_PAGE_SIZE:100}
+    # 分类配置
+    category:
+      max-depth: ${MAX_CATEGORY_DEPTH:3}
+    # 标签配置
+    tags:
+      max-per-product: ${MAX_TAGS_PER_PRODUCT:10}
+    # 图片配置
+    images:
+      max-count: ${MAX_PRODUCT_IMAGES:10}
+    # 库存配置
+    inventory:
+      low-stock-threshold: ${LOW_STOCK_THRESHOLD:10}
+      out-of-stock-behavior: ${OUT_OF_STOCK_BEHAVIOR:HIDE}
+    # 价格配置
+    pricing:
+      default-currency: ${DEFAULT_CURRENCY:USD}
+      rounding-scale: ${PRICE_ROUNDING_SCALE:2}
+    # 批量操作配置
+    batch:
+      reindex-size: ${PRODUCT_REINDEX_BATCH_SIZE:100}
+
+# ==================== Elasticsearch 索引配置 ====================
+elasticsearch:
+  indices:
+    product:
+      name: ${ELASTICSEARCH_INDEX_PREFIX:ecommerce}_products
+      settings:
+        number_of_shards: 1
+        number_of_replicas: 0
+  connection:
+    host: ${ELASTICSEARCH_HOST:elasticsearch}
+    port: ${ELASTICSEARCH_PORT:9200}
+    protocol: ${ELASTICSEARCH_PROTOCOL:http}
+
+# ==================== 安全配置 ====================
+security:
+  basic:
+    enabled: false
+  ignored: /actuator/**
+
+# ==================== 健康检查专用配置 ====================
+# 确保 Kubernetes 探针可以无认证访问健康端点

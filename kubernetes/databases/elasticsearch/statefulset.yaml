@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  namespace: ecommerce
+  labels:
+    app: elasticsearch
+    component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+        component: database
+    spec:
+      containers:
+      - name: elasticsearch
+        image: elasticsearch:7.17.10
+        env:
+        - name: discovery.type
+          value: single-node
+        - name: ES_JAVA_OPTS
+          value: "-Xms128m -Xmx128m"
+        - name: xpack.security.enabled
+          value: "false"
+        # Elasticsearch 6.8 特定的配置（移除不支持的配置）
+        - name: bootstrap.memory_lock
+          value: "false"
+        - name: http.host
+          value: "0.0.0.0"
+        - name: transport.host
+          value: "0.0.0.0"
+        - name: cluster.routing.allocation.disk.threshold_enabled
+          value: "false"
+        - name: action.destructive_requires_name
+          value: "false"
+        # 6.8 版本需要显式禁用监控
+        - name: xpack.monitoring.enabled
+          value: "false"
+        - name: xpack.watcher.enabled
+          value: "false"
+        - name: xpack.ml.enabled
+          value: "false"
+        - name: xpack.graph.enabled
+          value: "false"
+        ports:
+        - containerPort: 9200
+          name: http
+          protocol: TCP
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "384Mi"
+            cpu: "400m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9200
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9200
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          privileged: false

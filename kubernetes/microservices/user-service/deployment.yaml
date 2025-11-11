@@ -1,0 +1,374 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: ecommerce
+  labels:
+    app: user-service
+    app.kubernetes.io/name: user-service
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: user-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: user-service
+        app.kubernetes.io/name: user-service
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)  # 动态版本标签
+        version: $(APP_VERSION)                    # 动态版本标签
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # 数据库初始化容器
+      initContainers:
+      - name: wait-for-database
+        image: postgres:15
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for PostgreSQL service to be ready..."
+          until pg_isready -h postgresql-service -U admin; do
+            echo "PostgreSQL service not ready yet, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL service is ready."
+          
+          echo "Waiting for database ecommerce_users to be created..."
+          until psql -h postgresql-service -U admin -d postgres -c "SELECT 1 FROM pg_database WHERE datname='ecommerce_users'" | grep -q 1; do
+            echo "Database ecommerce_users not created yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Waiting for database ecommerce_users to be ready for connections..."
+          until pg_isready -h postgresql-service -U admin -d ecommerce_users; do
+            echo "Database ecommerce_users not ready yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Database ecommerce_users is ready for connections"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - user-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: user-service
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-user-service:$(APP_VERSION)  # 动态镜像版本
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        env:
+        # 版本信息 - 从 ConfigMap 动态获取
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.user-service.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.user-service.description
+        # 应用配置
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: SPRING_APPLICATION_NAME
+          value: "user-service"
+        # 服务器配置
+        - name: SERVER_PORT
+          value: "8080"
+        - name: SERVER_SERVLET_CONTEXT_PATH
+          value: "/api"
+        
+        # ==================== 支付宝配置 ====================
+        - name: ALIPAY_APP_ID
+          value: "2021006103655907"
+        - name: ALIPAY_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: alipay-secret
+              key: private-key
+        - name: ALIPAY_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: alipay-secret
+              key: alipay-public-key
+        - name: ALIPAY_GATEWAY
+          value: "https://openapi.alipay.com/gateway.do"
+        - name: ALIPAY_CALLBACK_URL
+          value: "https://awsmpc.asia/api/auth/alipay/callback"
+        - name: ALIPAY_SANDBOX
+          value: "false"
+        - name: ALIPAY_SIGN_TYPE
+          value: "RSA2"
+        - name: ALIPAY_CHARSET
+          value: "UTF-8"
+        - name: ALIPAY_FORMAT
+          value: "json"
+        - name: ALIPAY_SCOPE
+          value: "auth_user"
+        
+        # 数据库配置
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgresql-service:5432/ecommerce_users"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+          value: "org.postgresql.Driver"
+        - name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+          value: "10"
+        - name: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
+          value: "2"
+        - name: SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT
+          value: "30000"
+        - name: SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT
+          value: "600000"
+        - name: SPRING_DATASOURCE_HIKARI_MAX_LIFETIME
+          value: "1800000"
+        # JPA 配置
+        - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+          value: "validate"
+        - name: SPRING_JPA_HIBERNATE_NAMING_PHYSICAL_STRATEGY
+          value: "org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "false"
+        - name: SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT
+          value: "org.hibernate.dialect.PostgreSQLDialect"
+        - name: SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL
+          value: "true"
+        - name: SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_BATCH_SIZE
+          value: "20"
+        - name: SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_ORDER_INSERTS
+          value: "true"
+        - name: SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_ORDER_UPDATES
+          value: "true"
+        # 兼容旧配置（可选）
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: DB_HOST
+          value: "postgresql-service"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "ecommerce_users"
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        # Redis 缓存配置
+        - name: SPRING_REDIS_HOST
+          value: "redis-service"
+        - name: SPRING_REDIS_PORT
+          value: "6379"
+        - name: SPRING_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: SPRING_REDIS_TIMEOUT
+          value: "2000"
+        - name: SPRING_REDIS_LETTUCE_POOL_MAX_ACTIVE
+          value: "10"
+        - name: SPRING_REDIS_LETTUCE_POOL_MAX_IDLE
+          value: "5"
+        - name: SPRING_REDIS_LETTUCE_POOL_MIN_IDLE
+          value: "2"
+        - name: SPRING_REDIS_LETTUCE_POOL_MAX_WAIT
+          value: "1000"
+        # 兼容旧 Redis 配置
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_SESSION_TTL
+          value: "1800"
+        # JWT 安全配置
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: secret
+        - name: JWT_EXPIRATION
+          value: "86400000"
+        - name: JWT_REFRESH_EXPIRATION
+          value: "2592000000"
+        - name: JWT_ISSUER
+          value: "ecommerce-platform"
+        # 用户业务配置
+        - name: PASSWORD_MIN_LENGTH
+          value: "8"
+        - name: PASSWORD_MAX_LENGTH
+          value: "128"
+        - name: MAX_LOGIN_ATTEMPTS
+          value: "5"
+        - name: ACCOUNT_LOCKOUT_DURATION
+          value: "900000"
+        - name: REQUIRE_EMAIL_VERIFICATION
+          value: "true"
+        - name: REQUIRE_PHONE_VERIFICATION
+          value: "false"
+        # 安全配置 - 修复 403 问题
+        - name: BCRYPT_STRENGTH
+          value: "12"
+        - name: SESSION_TIMEOUT
+          value: "1800"
+        - name: ENABLE_CSRF_PROTECTION
+          value: "false"  # 禁用 CSRF 保护用于 API 测试
+        # 安全白名单配置 - 新增
+        - name: SPRING_SECURITY_IGNORED
+          value: "/api/actuator/**,/api/auth/register,/api/auth/login,/api/auth/send-verification-code,/api/auth/verification-code,/api/auth/send-code,/api/auth/alipay/callback,/api/auth/alipay/login"
+        # 通知配置
+        - name: NOTIFICATION_SERVICE_URL
+          value: "http://notification-service:8080"
+        - name: SEND_WELCOME_EMAIL
+          value: "true"
+        # Flyway 配置
+        - name: SPRING_FLYWAY_ENABLED
+          value: "true"
+        - name: SPRING_FLYWAY_VALIDATE_ON_MIGRATE
+          value: "true"
+        - name: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+          value: "true"
+        - name: SPRING_FLYWAY_LOCATIONS
+          value: "classpath:db/migration"
+        # Actuator 配置 - 修复健康检查问题
+        - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+          value: "health,info,metrics,prometheus"
+        - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+          value: "always"
+        - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+          value: "true"
+        - name: MANAGEMENT_HEALTH_DB_ENABLED
+          value: "true"
+        - name: MANAGEMENT_HEALTH_REDIS_ENABLED
+          value: "true"
+        # Actuator 安全配置 - 新增和修正
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"
+        - name: MANAGEMENT_ENDPOINT_HEALTH_ACCESS
+          value: "permit-all"
+        - name: MANAGEMENT_ENDPOINT_INFO_ACCESS
+          value: "permit-all"
+        - name: MANAGEMENT_ENDPOINT_METRICS_ACCESS
+          value: "permit-all"
+        - name: MANAGEMENT_ENDPOINT_PROMETHEUS_ACCESS
+          value: "permit-all"
+        # Eureka 配置
+        - name: EUREKA_CLIENT_ENABLED
+          value: "false"
+        - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
+          value: "false"
+        - name: EUREKA_CLIENT_FETCH_REGISTRY
+          value: "false"
+        # 日志配置
+        - name: LOGGING_LEVEL_COM_ECOMMERCE_USER
+          value: "DEBUG"
+        - name: LOGGING_LEVEL_ORG_HIBERNATE_SQL
+          value: "WARN"
+        - name: LOGGING_LEVEL_ORG_HIBERNATE_TYPE_DESCRIPTOR_SQL_BASICBINDER
+          value: "WARN"
+        - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY
+          value: "WARN"
+        - name: LOGGING_LEVEL_COM_ALIPAY
+          value: "WARN"
+        # 可选：构建信息
+        - name: BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # 修复健康检查探针 - 使用 TCP 探针避免路径和安全问题
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 30
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: regcred

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+  namespace: ecommerce
+  labels:
+    app: inventory-service
+    service: backend
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8083"  # 改为 8083，匹配应用程序实际端口
+    prometheus.io/path: "/actuator/prometheus"
+spec:
+  ports:
+    - name: http
+      port: 8080        # Service 端口保持不变（其他服务访问的端口）
+      targetPort: 8083  # 改为 8083，指向容器实际监听的端口
+      protocol: TCP
+    - name: metrics
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+  selector:
+    app: inventory-service
+  type: ClusterIP

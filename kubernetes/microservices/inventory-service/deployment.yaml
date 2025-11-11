@@ -1,0 +1,216 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: ecommerce
+  labels:
+    app: inventory-service
+    app.kubernetes.io/name: inventory-service
+    app.kubernetes.io/part-of: ecommerce
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: inventory-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+        app.kubernetes.io/name: inventory-service
+        app.kubernetes.io/part-of: ecommerce
+        app.kubernetes.io/version: $(APP_VERSION)
+        version: $(APP_VERSION)
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8083"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # 添加初始化容器确保数据库就绪
+      initContainers:
+      - name: wait-for-database
+        image: postgres:15
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "Waiting for PostgreSQL service to be ready..."
+          until pg_isready -h postgresql-service -U admin; do
+            echo "PostgreSQL service not ready yet, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL service is ready."
+          
+          echo "Waiting for database ecommerce_inventory to be created..."
+          until psql -h postgresql-service -U admin -d ecommerce -c "SELECT 1 FROM pg_database WHERE datname='ecommerce_inventory'" | grep -q 1; do
+            echo "Database ecommerce_inventory not created yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Waiting for database ecommerce_inventory to be ready for connections..."
+          until pg_isready -h postgresql-service -U admin -d ecommerce_inventory; do
+            echo "Database ecommerce_inventory not ready yet, waiting..."
+            sleep 2
+          done
+          
+          echo "Database ecommerce_inventory is ready for connections"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - inventory-service
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: inventory-service
+        image: 319998871902.dkr.ecr.us-east-1.amazonaws.com/ecommerce-inventory-service:$(APP_VERSION)
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8083
+          name: http
+          protocol: TCP
+        - containerPort: 8081
+          name: metrics
+          protocol: TCP
+        env:
+        # 版本信息
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.inventory-service.version
+        - name: APPLICATION_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: application.version
+        - name: SERVICE_DESCRIPTION
+          valueFrom:
+            configMapKeyRef:
+              name: app-version-info
+              key: service.inventory-service.description
+        
+        # 数据库配置 - 使用 ecommerce_inventory 数据库
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgresql-service:5432/ecommerce_inventory"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        
+        # 应用配置
+        - name: SPRING_PROFILES_ACTIVE
+          value: "production"
+        - name: SPRING_APPLICATION_NAME
+          value: "inventory-service"
+        
+        # 消息队列配置
+        - name: SPRING_RABBITMQ_HOST
+          value: "rabbitmq-service"
+        - name: SPRING_RABBITMQ_PORT
+          value: "5672"
+        - name: SPRING_RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        
+        # Redis配置 - 添加了密码配置
+        - name: SPRING_REDIS_HOST
+          value: "redis-service"
+        - name: SPRING_REDIS_PORT
+          value: "6379"
+        - name: SPRING_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        
+        # Flyway 配置
+        - name: SPRING_FLYWAY_ENABLED
+          value: "true"
+        - name: SPRING_FLYWAY_VALIDATE_ON_MIGRATE
+          value: "true"
+        - name: SPRING_FLYWAY_BASELINE_ON_MIGRATE
+          value: "true"
+        
+        # 构建信息
+        - name: BUILD_VERSION
+          value: "$(BUILD_VERSION)"
+        - name: GIT_COMMIT
+          value: "$(GIT_COMMIT)"
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        livenessProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8083
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8083
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/actuator/health
+            port: 8083
+            scheme: HTTP
+          initialDelaySeconds: 40
+          periodSeconds: 15
+          failureThreshold: 30
+        
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: regcred

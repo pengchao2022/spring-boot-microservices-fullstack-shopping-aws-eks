@@ -1,0 +1,37 @@
+# Internal NLB for microservices - with HTTPS termination
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservices-nlb
+  namespace: ecommerce
+  labels:
+    app: microservices
+  annotations:
+    # 按照成功配置的格式 - 没有引号
+    service.beta.kubernetes.io/aws-load-balancer-name: ecommerce-microservices-nlb
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    
+    # SSL/TLS Configuration
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:319998871902:certificate/fc39f8cd-dede-4f92-bbae-b154c7aff2b7
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    
+    # 可选的其他配置（保持简单）
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  # 关键：不要使用 loadBalancerClass
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/part-of: ecommerce
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+      protocol: TCP
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

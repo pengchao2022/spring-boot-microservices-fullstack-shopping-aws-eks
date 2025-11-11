@@ -1,0 +1,107 @@
+# Application Version Configuration
+# This file defines the version information for all services in the ecommerce application.
+# Update this file when releasing new versions.
+
+versions:
+  # Global application version - applies to all services
+  application:
+    major: 1
+    minor: 1  
+    patch: 33
+    name: "Production Release"
+    description: "Initial production release of Ecommerce Microservices Platform"
+  
+  # Individual service versions
+  # Each service can have its own version if needed, but typically follows application version
+  services:
+    user-service:
+      version: "1.1.33"
+      description: "User management service - handles user registration, authentication, and profile management"
+      component: "backend"
+      team: "identity-team"
+    
+    product-service:
+      version: "1.1.33"
+      description: "Product catalog service - manages product information, categories, and inventory"
+      component: "backend" 
+      team: "catalog-team"
+    
+    order-service:
+      version: "1.1.33" 
+      description: "Order processing service - handles order creation, tracking, and fulfillment"
+      component: "backend"
+      team: "order-team"
+    
+    payment-service:
+      version: "1.1.33"
+      description: "Payment processing service - integrates with payment gateways and processes transactions"
+      component: "backend"
+      team: "payment-team"
+    
+    inventory-service:
+      version: "1.1.33"
+      description: "Inventory management service - tracks stock levels and manages inventory operations"
+      component: "backend"
+      team: "inventory-team"
+    
+    notification-service:
+      version: "1.1.33"
+      description: "Notification service - sends emails, SMS, and push notifications to users"
+      component: "backend"
+      team: "notification-team"
+
+    
+    frontend:
+      version: "1.1.33"
+      description: "React frontend application - user interface for the ecommerce platform"
+      component: "frontend"
+      team: "frontend-team"
+
+  # Database and infrastructure versions
+  infrastructure:
+    postgresql:
+      version: "13.0"
+      description: "Primary relational database for user, product, and order data"
+    
+    mongodb:
+      version: "5.0" 
+      description: "Document database for product catalog and inventory data"
+    
+    redis:
+      version: "6.2"
+      description: "Cache and session storage"
+    
+    rabbitmq:
+      version: "3.9"
+      description: "Message broker for asynchronous communication between services"
+
+  # Build and deployment configuration
+  build:
+    # These will be populated automatically by CI/CD
+    timestamp: "${BUILD_TIMESTAMP}"
+    commit: "${GIT_COMMIT}"
+    branch: "${BRANCH_NAME}"
+    build_number: "${BUILD_NUMBER}"
+    
+    # Build configuration
+    java_version: "17"
+    node_version: "18"
+    gradle_version: "8.5"
+
+  # Release notes (optional - can be updated for each release)
+  release_notes:
+    version: "1.0.0"
+    date: "2024-01-01"
+    highlights:
+      - "Initial production release"
+      - "User registration and authentication"
+      - "Product catalog with search and filtering"
+      - "Shopping cart and checkout process"
+      - "Order management and tracking"
+      - "Payment integration"
+      - "Inventory management"
+      - "Email notifications"
+    known_issues:
+      - "None"
+    upgrade_instructions: |
+      This is the initial release. No upgrade required.

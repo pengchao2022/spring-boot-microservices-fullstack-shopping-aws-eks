@@ -1,0 +1,234 @@
+server:
+  port: 8083
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  tomcat:
+    max-connections: 10000
+    max-threads: 200
+    min-spare-threads: 10
+    connection-timeout: 30000
+    keep-alive-timeout: 30000
+
+spring:
+  application:
+    name: inventory-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:production}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgresql-service:5432/ecommerce_inventory}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USERNAME:admin}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgres123}}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+  jpa:
+    hibernate:
+      ddl-auto: update  # 改为 update 让 Flyway 先运行
+    show-sql: ${SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:rabbitmq-service}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
+    connection-timeout: 10000
+    template:
+      retry:
+        enabled: true
+        initial-interval: 5000
+        multiplier: 2
+        max-attempts: 3
+    listener:
+      simple:
+        missing-queues-fatal: false
+        auto-startup: false
+  redis:
+    host: ${SPRING_REDIS_HOST:redis-service}
+    port: ${SPRING_REDIS_PORT:6379}
+    password: ${SPRING_REDIS_PASSWORD:}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+        max-wait: 5000ms
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000
+      cache-null-values: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: false  # 暂时关闭验证
+    table: flyway_schema_history_inventory
+
+# 库存服务配置
+inventory:
+  settings:
+    default-reservation-expiration-minutes: ${INVENTORY_RESERVATION_EXPIRATION:30}
+    cleanup-schedule: ${INVENTORY_CLEANUP_SCHEDULE:"0 0 2 * * ?"}
+    low-stock-threshold: ${LOW_STOCK_THRESHOLD:10}
+    batch-operation-timeout: ${BATCH_OPERATION_TIMEOUT:30000}
+    max-batch-size: ${MAX_BATCH_SIZE:100}
+    enable-stock-alerts: ${ENABLE_STOCK_ALERTS:true}
+    alert-low-stock-level: ${ALERT_LOW_STOCK_LEVEL:5}
+    alert-out-of-stock-level: ${ALERT_OUT_OF_STOCK_LEVEL:0}
+
+# 微服务通信配置
+service:
+  order:
+    url: ${ORDER_SERVICE_URL:http://order-service:8080}
+  product:
+    url: ${PRODUCT_SERVICE_URL:http://product-service:8080}
+
+# 日志配置 - 增加 Flyway 日志级别
+logging:
+  level:
+    com.ecommerce.inventory: ${LOG_LEVEL:INFO}
+    org.flywaydb: DEBUG  # 增加 Flyway 调试日志
+    org.hibernate.SQL: ${HIBERNATE_SQL_LOG:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.web: INFO
+    org.springframework.amqp: ${RABBITMQ_LOG_LEVEL:INFO}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/inventory-service.log
+    max-size: 10MB
+    max-history: 30
+
+# Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,beans,configprops
+      base-path: /actuator
+    enabled-by-default: true
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+    info:
+      enabled: true
+    metrics:
+      enabled: true
+  info:
+    env:
+      enabled: true
+    build:
+      enabled: true
+    git:
+      enabled: true
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+    rabbit:
+      enabled: true
+    redis:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+# 安全配置
+security:
+  basic:
+    enabled: false
+
+# Resilience4j 断路器配置
+resilience4j:
+  circuitbreaker:
+    instances:
+      inventoryService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        wait-duration-in-open-state: 10s
+        failure-rate-threshold: 50
+        event-consumer-buffer-size: 10
+  retry:
+    instances:
+      inventoryService:
+        max-attempts: 3
+        wait-duration: 2s
+  timelimiter:
+    instances:
+      inventoryService:
+        timeout-duration: 30s
+
+# 消息配置
+spring-cloud:
+  stream:
+    bindings:
+      inventoryOutput:
+        destination: inventory-events
+        group: inventory-service
+      orderInput:
+        destination: order-events
+        group: inventory-service
+    rabbit:
+      bindings:
+        inventoryOutput:
+          producer:
+            routing-key-expression: '''inventory.event'''
+        orderInput:
+          consumer:
+            binding-routing-key: order.event.*
+            queue-name-group-only: true
+
+# Jackson 配置
+jackson:
+  serialization:
+    write-dates-as-timestamps: false
+    write-durations-as-timestamps: false
+  deserialization:
+    adjust-dates-to-context-time-zone: false
+  date-format: yyyy-MM-dd HH:mm:ss
+  time-zone: GMT+8
+
+# 缓存配置
+cache:
+  redis:
+    inventory-ttl: ${INVENTORY_CACHE_TTL:300}
+    reservation-ttl: ${RESERVATION_CACHE_TTL:1800}
+
+# 线程池配置
+async:
+  thread-pool:
+    core-size: 5
+    max-size: 20
+    queue-capacity: 100
+    keep-alive-seconds: 60
+
+# 库存批处理配置
+batch:
+  inventory:
+    chunk-size: ${INVENTORY_CHUNK_SIZE:50}
+    pool-size: ${INVENTORY_POOL_SIZE:10}
+    timeout-seconds: ${INVENTORY_TIMEOUT_SECONDS:300}

@@ -1,0 +1,52 @@
+.fruit-list-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.page-header h1 {
+  font-size: 2.5rem;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.page-header p {
+  font-size: 1.1rem;
+  color: #666;
+}
+
+.fruits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 30px;
+  margin: 0 auto;
+}
+
+.no-fruits {
+  text-align: center;
+  padding: 50px;
+  font-size: 1.2rem;
+  color: #666;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .fruit-list-page {
+    padding: 10px;
+  }
+  
+  .fruits-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .page-header h1 {
+    font-size: 2rem;
+  }
+}

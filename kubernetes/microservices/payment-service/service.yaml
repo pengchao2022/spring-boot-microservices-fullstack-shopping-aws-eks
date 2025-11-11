@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: ecommerce
+  labels:
+    app: payment-service
+    service: backend
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8084"  # 改为 8084 (management 端口)
+    prometheus.io/path: "/management/prometheus"  # 更新路径
+spec:
+  ports:
+    - name: http
+      port: 80        # 外部访问端口，可以使用 80 或保持 8083
+      targetPort: 8083  # 指向容器的 8083 端口
+      protocol: TCP
+    - name: metrics
+      port: 8084      # 改为 8084
+      targetPort: 8084  # 指向容器的 8084 端口
+      protocol: TCP
+  selector:
+    app: payment-service
+  type: ClusterIP

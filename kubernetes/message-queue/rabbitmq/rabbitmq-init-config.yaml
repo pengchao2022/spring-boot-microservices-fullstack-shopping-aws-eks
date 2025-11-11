@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-init-config
+  namespace: ecommerce
+data:
+  definitions.json: |
+    {
+      "users": [
+        {
+          "name": "admin",
+          "password": "rabbitmq123",
+          "tags": "administrator"
+        },
+        {
+          "name": "guest",
+          "password": "guest",
+          "tags": "administrator"
+        }
+      ],
+      "vhosts": [
+        {
+          "name": "/"
+        }
+      ],
+      "permissions": [
+        {
+          "user": "admin",
+          "vhost": "/",
+          "configure": ".*",
+          "write": ".*",
+          "read": ".*"
+        },
+        {
+          "user": "guest",
+          "vhost": "/",
+          "configure": ".*",
+          "write": ".*",
+          "read": ".*"
+        }
+      ],
+      "parameters": [],
+      "policies": [],
+      "queues": [],
+      "exchanges": [],
+      "bindings": []
+    }
+  rabbitmq.conf: |
+    # 允许所有用户远程访问
+    loopback_users = none
+    
+    # 默认虚拟主机
+    default_vhost = /
+    
+    # 磁盘空闲空间限制
+    disk_free_limit.absolute = 2GB
+    
+    # 内存使用限制  
+    vm_memory_high_watermark.absolute = 512MB
+    
+    # 启用管理插件
+    management.tcp.port = 15672
+    management.tcp.ip   = 0.0.0.0
+    
+    # 日志配置
+    log.console.level = info
+    log.file.level = info

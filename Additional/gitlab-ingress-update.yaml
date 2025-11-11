@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-ingress
+  namespace: gitlab
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:319998871902:certificate/4546c45c-ed5f-4097-931c-f59e686b8f19
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /explore
+    alb.ingress.kubernetes.io/success-codes: "200,302"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=600
+    kubernetes.io/ingress.class: alb
+spec:
+  tls:
+  - hosts:
+    - gitlab.awsmpc.asia
+    secretName: gitlab-tls
+  rules:
+  - host: gitlab.awsmpc.asia
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gitlab-service
+            port:
+              number: 80
