@@ -5,6 +5,7 @@
 ## Architecture
 
 - Frontend 
+```
     - React + React Router DOM         // Route
     - Axios/Fetch                      // HTTP client
     - Redux/Zustand                    // State management
@@ -12,6 +13,7 @@
     - Vite/CRA                         // Build
     - Nginx.conf
     - Dockerfile
+```
 
 - Backend                              // Microservices
     - user-service                     // SMS, Alipay login open.alipay.com API service
