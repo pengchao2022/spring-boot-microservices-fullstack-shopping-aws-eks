@@ -73,6 +73,11 @@
     - Jenkins for the CD with Jenkinsfile and running on jenkins agent node 
 ```
 
+- MicroServices running on EKS
+
+![EKS_pods](EKS_POD.png)
+
+
 
 ## Features
 
