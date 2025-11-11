@@ -101,6 +101,8 @@
 
 ![Profile](profile_address.png)
 
+- Others function will show you later and i Will keep updates for you...
+
 
 
 
