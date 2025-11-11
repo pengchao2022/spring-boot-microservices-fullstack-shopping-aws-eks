@@ -85,6 +85,19 @@
 
 ![home](home.png)
 
+- User service register 
+
+![Register](register.png)
+
+- Login module
+
+![Register](./account_login.png)
+
+- Alipay login module
+
+![Alipay_login](alipay1.png)
+
+
 
 
 
