@@ -85,13 +85,15 @@
 
 ![home](home.png)
 
+![home1](home1.png)
+
 - User service register 
 
 ![Register](register.png)
 
 - Login module
 
-![Register](./account_login.png)
+![Register](account_login.png)
 
 - Alipay login module
 
@@ -100,6 +102,8 @@
 - Profile and mailing Address
 
 ![Profile](profile_address.png)
+
+![Delivery](delivery.png)
 
 - Others function will show you later and i Will keep updates for you...
 
